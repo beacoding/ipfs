@@ -1,6 +1,11 @@
 syntax = "proto3";
 package serverpb;
 
+message NodeConfig {
+  string path = 1;
+  int32 max_peers = 2;
+}
+
 message HelloRequest {}
 message HelloResponse {}
 
