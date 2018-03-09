@@ -1,0 +1,9 @@
+syntax = "proto3";
+package serverpb;
+
+message HelloRequest {}
+message HelloResponse {}
+
+service Node {
+  rpc Hello(HelloRequest) returns (HelloResponse) {}
+}
