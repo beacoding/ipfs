@@ -1,12 +1,12 @@
 package server
 
 import (
-	"context"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
+	"sync"
 
 	"github.com/dgraph-io/badger"
 	"github.com/pkg/errors"
@@ -22,6 +22,13 @@ type Server struct {
 	config     serverpb.NodeConfig
 	db         *badger.DB
 	l          net.Listener
+
+	mu struct {
+		sync.Mutex
+
+		peerMeta map[string]serverpb.NodeMeta
+		peers    map[string]serverpb.NodeClient
+	}
 }
 
 // New returns a new server.
@@ -31,6 +38,8 @@ func New(c serverpb.NodeConfig) (*Server, error) {
 		grpcServer: grpc.NewServer(),
 		config:     c,
 	}
+	s.mu.peerMeta = map[string]serverpb.NodeMeta{}
+	s.mu.peers = map[string]serverpb.NodeClient{}
 
 	if len(c.Path) == 0 {
 		return nil, errors.Errorf("config: path must not be empty")
@@ -63,10 +72,6 @@ func (s *Server) Close() error {
 		return err
 	}
 	return nil
-}
-
-func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*serverpb.HelloResponse, error) {
-	return nil, ErrUnimplemented
 }
 
 // Listen causes the server to listen on the specified IP and port.

@@ -1,13 +1,23 @@
 syntax = "proto3";
 package serverpb;
 
+message NodeMeta {
+  string id = 1;
+  string public_key = 2;
+  repeated string addrs = 3;
+}
+
 message NodeConfig {
   string path = 1;
   int32 max_peers = 2;
 }
 
-message HelloRequest {}
-message HelloResponse {}
+message HelloRequest {
+  NodeMeta meta = 1;
+}
+message HelloResponse {
+  NodeMeta meta = 1;
+}
 
 service Node {
   rpc Hello(HelloRequest) returns (HelloResponse) {}
