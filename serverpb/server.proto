@@ -5,6 +5,7 @@ message NodeMeta {
   string id = 1;
   string public_key = 2;
   repeated string addrs = 3;
+  string cert = 4;
 }
 
 message NodeConfig {
