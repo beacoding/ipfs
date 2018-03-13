@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log"
@@ -81,7 +80,6 @@ func (s *Server) loadCert() error {
 		}
 		s.cert = &cert
 
-		var key ecdsa.PrivateKey
 		privateKeyItem, err := txn.Get([]byte(privateKeyKey))
 		if err != nil {
 			return err
@@ -90,10 +88,10 @@ func (s *Server) loadCert() error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(privKey, &key); err != nil {
+		s.key, err = x509.ParseECPrivateKey(privKey)
+		if err != nil {
 			return err
 		}
-		s.key = &key
 
 		return nil
 	}); err != nil {
@@ -109,7 +107,7 @@ func (s *Server) generateCert() error {
 		log.Fatalf("failed to generate private key: %s", err)
 	}
 	s.key = priv
-	privKey, err := json.Marshal(priv)
+	privKey, err := x509.MarshalECPrivateKey(priv)
 	if err != nil {
 		return err
 	}
