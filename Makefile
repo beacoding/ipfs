@@ -16,5 +16,5 @@ deps:
 
 .PHONY: proto
 proto:
-	protoc --gogoslick_out=plugins=grpc:. serverpb/server.proto
+	protoc -I .. -I . --gogoslick_out=plugins=grpc:. serverpb/server.proto
 

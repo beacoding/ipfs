@@ -59,6 +59,7 @@ func New(c serverpb.NodeConfig) (*Server, error) {
 	s.db = db
 
 	serverpb.RegisterNodeServer(s.grpcServer, s)
+	serverpb.RegisterClientServer(s.grpcServer, s)
 
 	return s, nil
 }
