@@ -25,7 +25,7 @@ type cluster struct {
 	Dirs  []string
 }
 
-func NewTestCluster(t *testing.T, n int) *cluster {
+func NewTestCluster(t *testing.T, n int, opts ...func(*serverpb.NodeConfig)) *cluster {
 	c := cluster{
 		t: t,
 	}
@@ -34,10 +34,14 @@ func NewTestCluster(t *testing.T, n int) *cluster {
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
-		s, err := server.New(serverpb.NodeConfig{
+		config := serverpb.NodeConfig{
 			Path:     dir,
 			MaxPeers: 10,
-		})
+		}
+		for _, f := range opts {
+			f(&config)
+		}
+		s, err := server.New(config)
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
@@ -51,11 +55,22 @@ func NewTestCluster(t *testing.T, n int) *cluster {
 		}()
 	}
 
+	var meta serverpb.NodeMeta
+	var err error
+	util.SucceedsSoon(t, func() error {
+		meta, err = c.Nodes[0].NodeMeta()
+		if err != nil {
+			return err
+		}
+		if len(meta.Addrs) == 0 {
+			return errors.Errorf("no address")
+		}
+		return nil
+	})
+
 	for _, node := range c.Nodes[1:] {
-		var meta serverpb.NodeMeta
-		var err error
 		util.SucceedsSoon(t, func() error {
-			meta, err = node.NodeMeta()
+			meta, err := node.NodeMeta()
 			if err != nil {
 				return err
 			}
@@ -64,7 +79,7 @@ func NewTestCluster(t *testing.T, n int) *cluster {
 			}
 			return nil
 		})
-		if err := c.Nodes[0].AddNode(meta); err != nil {
+		if err := node.AddNode(meta); err != nil {
 			t.Fatalf("%+v", err)
 		}
 	}
