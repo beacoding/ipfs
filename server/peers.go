@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	dialTimeout = 2 * time.Second
+	dialTimeout       = 2 * time.Second
+	heartBeatInterval = 2 * time.Second
 )
 
 func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*serverpb.HelloResponse, error) {
@@ -78,7 +79,7 @@ func (s *Server) persistNodeMeta(meta serverpb.NodeMeta) error {
 	return nil
 }
 
-func (s *Server) connectNode(ctx context.Context, meta serverpb.NodeMeta) (serverpb.NodeClient, error) {
+func (s *Server) connectNode(ctx context.Context, meta serverpb.NodeMeta) (*grpc.ClientConn, error) {
 
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(meta.Cert))
@@ -99,7 +100,7 @@ func (s *Server) connectNode(ctx context.Context, meta serverpb.NodeMeta) (serve
 	if err != nil {
 		return nil, errors.Wrapf(err, "dialing %s", meta.Id)
 	}
-	return serverpb.NewNodeClient(conn), nil
+	return conn, nil
 }
 
 // getOutboundIP sets up a UDP connection (but doesn't send anything) and uses
@@ -155,7 +156,8 @@ func (s *Server) AddNode(meta serverpb.NodeMeta) error {
 	if err != nil {
 		return err
 	}
-	resp, err := conn.Hello(ctx, &serverpb.HelloRequest{
+	client := serverpb.NewNodeClient(conn)
+	resp, err := client.Hello(ctx, &serverpb.HelloRequest{
 		Meta: &localMeta,
 	})
 	if err != nil {
@@ -166,8 +168,40 @@ func (s *Server) AddNode(meta serverpb.NodeMeta) error {
 	}
 
 	s.mu.Lock()
-	s.mu.peers[meta.Id] = conn
+	// make sure there isn't a duplicate connection
+	_, ok := s.mu.peers[meta.Id]
+	if !ok {
+		s.mu.peers[meta.Id] = client
+		s.mu.peerConns[meta.Id] = conn
+	}
 	s.mu.Unlock()
+
+	// race condition to add connections, don't overwrite and close this
+	// connection.
+	if ok {
+		s.log.Printf("found duplicate connection to: %s", color.RedString(meta.Id))
+		if err := conn.Close(); err != nil {
+			return err
+		}
+	}
+
+	go func() {
+		for {
+			ctx, _ := context.WithTimeout(ctx, dialTimeout)
+			if _, err := client.HeartBeat(ctx, &serverpb.HeartBeatRequest{}); err != nil {
+				s.log.Printf("heartbeat error: %s: %+v", color.RedString(meta.Id), err)
+				s.mu.Lock()
+				delete(s.mu.peers, meta.Id)
+				delete(s.mu.peerConns, meta.Id)
+				s.mu.Unlock()
+				if err := conn.Close(); err != nil {
+					s.log.Printf("failed to close connection: %s: %+v", color.RedString(meta.Id), err)
+				}
+				return
+			}
+			time.Sleep(heartBeatInterval)
+		}
+	}()
 
 	if err := s.AddNodes(resp.ConnectedPeers, resp.KnownPeers); err != nil {
 		return err
