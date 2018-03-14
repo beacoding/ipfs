@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -27,6 +28,10 @@ func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*server
 
 	resp := serverpb.HelloResponse{
 		Meta: &meta,
+	}
+
+	if err := s.AddNode(*req.Meta); err != nil {
+		return nil, err
 	}
 
 	s.mu.Lock()
@@ -48,14 +53,15 @@ func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*server
 }
 
 // addNodeMeta adds a node meta object to the server and returns whether or not
+// that node has been seen before.
 func (s *Server) addNodeMeta(meta serverpb.NodeMeta) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.mu.peerMeta[meta.Id]; ok {
-		return false
+	old, ok := s.mu.peerMeta[meta.Id]
+	if !ok || old.Updated < meta.Updated {
+		s.mu.peerMeta[meta.Id] = meta
 	}
-	s.mu.peerMeta[meta.Id] = meta
-	return true
+	return !ok
 }
 
 func (s *Server) persistNodeMeta(meta serverpb.NodeMeta) error {
@@ -108,24 +114,44 @@ func getOutboundIP() net.IP {
 	return conn.LocalAddr().(*net.UDPAddr).IP
 }
 
+func (s *Server) NumConnections() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.mu.peers)
+}
+
 // AddNode adds a node to the server.
 func (s *Server) AddNode(meta serverpb.NodeMeta) error {
+	localMeta, err := s.NodeMeta()
+	if err != nil {
+		return err
+	}
+
+	if localMeta.Id == meta.Id {
+		return nil
+	}
+
 	if err := validateNodeMeta(meta); err != nil {
 		return err
 	}
-	if !s.addNodeMeta(meta) {
-		return nil
-	}
+
+	s.log.Printf("AddNode %s", color.RedString(meta.Id))
+
+	new := s.addNodeMeta(meta)
 	if err := s.persistNodeMeta(meta); err != nil {
 		return err
+	}
+	if !new {
+		return nil
+	}
+
+	if s.NumConnections() >= int(s.config.MaxPeers) {
+		return nil
 	}
 
 	ctx := context.TODO()
 	conn, err := s.connectNode(ctx, meta)
-	if err != nil {
-		return err
-	}
-	localMeta, err := s.NodeMeta()
 	if err != nil {
 		return err
 	}
@@ -140,9 +166,30 @@ func (s *Server) AddNode(meta serverpb.NodeMeta) error {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.mu.peers[meta.Id] = conn
+	s.mu.Unlock()
 
+	if err := s.AddNodes(resp.ConnectedPeers, resp.KnownPeers); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AddNodes adds a list of connected and known peers. Connected means that one
+// of our peers is connected to them and known just means we know they exist.
+// The server should prefer to connect to known first since that maximizes
+// the cross section bandwidth of the graph.
+func (s *Server) AddNodes(connected []*serverpb.NodeMeta, known []*serverpb.NodeMeta) error {
+	for _, meta := range known {
+		if err := s.AddNode(*meta); err != nil {
+			return err
+		}
+	}
+	for _, meta := range connected {
+		if err := s.AddNode(*meta); err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -64,7 +64,6 @@ func NewTestCluster(t *testing.T, n int) *cluster {
 			}
 			return nil
 		})
-		t.Logf("meta %+v", meta)
 		if err := c.Nodes[0].AddNode(meta); err != nil {
 			t.Fatalf("%+v", err)
 		}
