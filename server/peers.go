@@ -2,15 +2,11 @@ package server
 
 import (
 	"context"
-	"crypto/sha1"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
-	"strconv"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -28,9 +24,27 @@ func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*server
 	if err != nil {
 		return nil, err
 	}
-	return &serverpb.HelloResponse{
+
+	resp := serverpb.HelloResponse{
 		Meta: &meta,
-	}, nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for id := range s.mu.peers {
+		meta := s.mu.peerMeta[id]
+		resp.ConnectedPeers = append(resp.ConnectedPeers, &meta)
+	}
+	for id, meta := range s.mu.peerMeta {
+		if _, ok := s.mu.peers[id]; ok {
+			continue
+		}
+		meta := meta
+		resp.KnownPeers = append(resp.KnownPeers, &meta)
+	}
+
+	return &resp, nil
 }
 
 // addNodeMeta adds a node meta object to the server and returns whether or not
@@ -54,16 +68,6 @@ func (s *Server) persistNodeMeta(meta serverpb.NodeMeta) error {
 		return txn.Set([]byte(key), body)
 	}); err != nil {
 		return err
-	}
-	return nil
-}
-
-func validateNodeMeta(meta serverpb.NodeMeta) error {
-	if meta.Id == "" {
-		return errors.New("NodeMeta missing ID")
-	}
-	if len(meta.Addrs) == 0 {
-		return errors.Errorf("%#v missing addresses", meta)
 	}
 	return nil
 }
@@ -102,59 +106,6 @@ func getOutboundIP() net.IP {
 	defer conn.Close()
 
 	return conn.LocalAddr().(*net.UDPAddr).IP
-}
-
-func (s *Server) NodeMeta() (serverpb.NodeMeta, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	publicKey, err := json.Marshal(s.key.PublicKey)
-	if err != nil {
-		return serverpb.NodeMeta{}, err
-	}
-
-	id := sha1.Sum(publicKey)
-
-	meta := serverpb.NodeMeta{
-		Id:        base64.StdEncoding.EncodeToString(id[:]),
-		Cert:      s.certPublic,
-		PublicKey: string(publicKey),
-	}
-
-	if s.mu.l != nil {
-		addr := s.mu.l.Addr()
-		tcpAddr := addr.(*net.TCPAddr)
-		if tcpAddr.IP.IsUnspecified() {
-			meta.Addrs = append(meta.Addrs, net.JoinHostPort(getOutboundIP().String(), strconv.Itoa(tcpAddr.Port)))
-			/*
-				ifaces, err := net.Interfaces()
-				if err != nil {
-					return serverpb.NodeMeta{}, err
-				}
-				for _, i := range ifaces {
-					addrs, err := i.Addrs()
-					if err != nil {
-						return serverpb.NodeMeta{}, err
-					}
-					for _, addr := range addrs {
-						var ip net.IP
-						switch v := addr.(type) {
-						case *net.IPNet:
-							ip = v.IP
-						case *net.IPAddr:
-							ip = v.IP
-						}
-						possibleAddr := net.JoinHostPort(ip.String(), strconv.Itoa(tcpAddr.Port))
-						meta.Addrs = append(meta.Addrs, possibleAddr)
-					}
-				}
-			*/
-		} else {
-			meta.Addrs = append(meta.Addrs, addr.String())
-		}
-	}
-
-	return meta, nil
 }
 
 // AddNode adds a node to the server.
