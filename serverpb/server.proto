@@ -38,6 +38,13 @@ message File {
   bytes data = 2;
 }
 
+message Reference {
+  string value = 1;
+  string public_key = 2;
+  string signature = 3;
+  int64 timestamp = 4;
+}
+
 message GetRequest {
   string file_id = 1; // hash of file
 }
@@ -60,7 +67,9 @@ message GetPeersResponse {
   repeated NodeMeta peers = 1;
 }
 
-message AddPeerRequest {}
+message AddPeerRequest {
+  string addr = 1;
+}
 
 message AddPeerResponse {}
 
@@ -68,9 +77,13 @@ message GetReferenceRequest {
   string reference_id = 1;
 }
 
-message GetReferenceResponse {}
+message GetReferenceResponse {
+  Reference reference = 1;
+}
 
-message AddReferenceRequest {}
+message AddReferenceRequest {
+  Reference reference = 1;
+}
 
 message AddReferenceResponse {}
 

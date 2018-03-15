@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
-	"math/big"
 	"net"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
 	"strconv"
@@ -49,7 +48,7 @@ func validateNodeMeta(meta serverpb.NodeMeta) error {
 	if err != nil {
 		return err
 	}
-	var sig ecdsaSignature
+	var sig EcdsaSignature
 	if _, err := asn1.Unmarshal(rawSig, &sig); err != nil {
 		return err
 	}
@@ -76,10 +75,6 @@ func nodeMetaHash(meta serverpb.NodeMeta) ([]byte, error) {
 	return hash[:], nil
 }
 
-type ecdsaSignature struct {
-	R, S *big.Int
-}
-
 func nodeMetaPublicKey(meta serverpb.NodeMeta) (*ecdsa.PublicKey, error) {
 	pub, err := x509.ParsePKIXPublicKey([]byte(meta.PublicKey))
 	if err != nil {
@@ -102,7 +97,7 @@ func nodeMetaSign(meta serverpb.NodeMeta, key *ecdsa.PrivateKey) (string, error)
 	if err != nil {
 		return "", err
 	}
-	sig, err := asn1.Marshal(ecdsaSignature{R: r, S: s})
+	sig, err := asn1.Marshal(EcdsaSignature{R: r, S: s})
 	if err != nil {
 		return "", err
 	}

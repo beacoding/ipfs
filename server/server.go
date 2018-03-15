@@ -37,6 +37,7 @@ type Server struct {
 		peerMeta   map[string]serverpb.NodeMeta
 		peers      map[string]serverpb.NodeClient
 		peerConns  map[string]*grpc.ClientConn
+		references map[string]serverpb.Reference
 	}
 }
 

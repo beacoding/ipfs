@@ -81,6 +81,15 @@ func (s *Server) AddPeer(ctx context.Context, in *serverpb.AddPeerRequest) (*ser
 }
 
 func (s *Server) GetReference(ctx context.Context, in *serverpb.GetReferenceRequest) (*serverpb.GetReferenceResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Lock()
+	if reference, ok := s.mu.references[in.GetReferenceId()]; ok {
+		resp := &serverpb.GetReferenceResponse{
+			Reference: &reference,
+		}
+		return resp, nil
+	}
+	// TODO: Do a network lookup for this reference
 	resp := &serverpb.GetReferenceResponse{}
 	return resp, nil
 }
