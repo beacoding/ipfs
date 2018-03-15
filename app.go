@@ -151,8 +151,9 @@ func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) 
 			fmt.Println(resp.GetReference().GetValue())
 		}
 	} else if cmd[1] == "add" && len(cmd) == 4 {
-		if !strings.Contains(cmd[2], "document:") || !strings.Contains(cmd[2], "reference:") {
+		if !strings.Contains(cmd[2], "document:") && !strings.Contains(cmd[2], "reference:") {
 			fmt.Println("Record should be in the format of 'document:document_id' or 'reference:reference_id'.")
+			return
 		}
 		// Load private key and create public key
 		privKey, err := server.LoadPrivate(cmd[3])
