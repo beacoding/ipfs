@@ -5,6 +5,9 @@ message NodeMeta {
   string id = 1;
   string public_key = 2;
   repeated string addrs = 3;
+  string cert = 4;
+  int64 updated = 5;
+  string signature = 6;
 }
 
 message NodeConfig {
@@ -18,10 +21,16 @@ message HelloRequest {
 
 message HelloResponse {
   NodeMeta meta = 1;
+  repeated NodeMeta connected_peers = 2;
+  repeated NodeMeta known_peers = 3;
 }
+
+message HeartBeatRequest {}
+message HeartBeatResponse {}
 
 service Node {
   rpc Hello(HelloRequest) returns (HelloResponse) {}
+  rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
 }
 
 message File {
@@ -55,7 +64,9 @@ message AddPeerRequest {}
 
 message AddPeerResponse {}
 
-message GetReferenceRequest {}
+message GetReferenceRequest {
+  string reference_id = 1;
+}
 
 message GetReferenceResponse {}
 

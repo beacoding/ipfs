@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/ecdsa"
+	"crypto/tls"
 	"log"
 	"net"
 	"os"
@@ -9,37 +11,44 @@ import (
 	"sync"
 
 	"github.com/dgraph-io/badger"
+	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var ErrUnimplemented = errors.New("unimplemented")
 
 // Server is the main server struct.
 type Server struct {
-	log        *log.Logger
-	grpcServer *grpc.Server
-	config     serverpb.NodeConfig
-	db         *badger.DB
-	l          net.Listener
+	log    *log.Logger
+	config serverpb.NodeConfig
+	db     *badger.DB
+
+	key        *ecdsa.PrivateKey
+	cert       *tls.Certificate
+	certPublic string
 
 	mu struct {
 		sync.Mutex
 
-		peerMeta map[string]serverpb.NodeMeta
-		peers    map[string]serverpb.NodeClient
+		l          net.Listener
+		grpcServer *grpc.Server
+		peerMeta   map[string]serverpb.NodeMeta
+		peers      map[string]serverpb.NodeClient
+		peerConns  map[string]*grpc.ClientConn
 	}
 }
 
 // New returns a new server.
 func New(c serverpb.NodeConfig) (*Server, error) {
 	s := &Server{
-		log:        log.New(os.Stderr, "", log.Flags()|log.Lshortfile),
-		grpcServer: grpc.NewServer(),
-		config:     c,
+		log:    log.New(os.Stderr, "", log.Flags()|log.Lshortfile),
+		config: c,
 	}
 	s.mu.peerMeta = map[string]serverpb.NodeMeta{}
 	s.mu.peers = map[string]serverpb.NodeClient{}
+	s.mu.peerConns = map[string]*grpc.ClientConn{}
 
 	if len(c.Path) == 0 {
 		return nil, errors.Errorf("config: path must not be empty")
@@ -56,21 +65,26 @@ func New(c serverpb.NodeConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	s.db = db
 
-	serverpb.RegisterNodeServer(s.grpcServer, s)
-	serverpb.RegisterClientServer(s.grpcServer, s)
+	if err := s.loadOrGenerateCert(); err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }
 
 func (s *Server) Close() error {
-	if err := s.db.Close(); err != nil {
-		return err
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.mu.grpcServer != nil {
+		s.mu.grpcServer.Stop()
 	}
-	s.grpcServer.GracefulStop()
-	if err := s.l.Close(); err != nil {
-		return err
+
+	if err := s.db.Close(); err != nil {
+		return errors.Wrapf(err, "db close")
 	}
 	return nil
 }
@@ -81,7 +95,27 @@ func (s *Server) Listen(addr string) error {
 	if err != nil {
 		return err
 	}
-	s.l = l
+
+	creds := credentials.NewServerTLSFromCert(s.cert)
+	grpcServer := grpc.NewServer(grpc.Creds(creds))
+	serverpb.RegisterNodeServer(grpcServer, s)
+	serverpb.RegisterClientServer(grpcServer, s)
+
+	s.mu.Lock()
+	s.mu.l = l
+	s.mu.grpcServer = grpcServer
+	s.mu.Unlock()
+
+	meta, err := s.NodeMeta()
+	if err != nil {
+		return err
+	}
+
+	s.log.SetPrefix(color.RedString(meta.Id) + " " + color.GreenString(l.Addr().String()) + " ")
+
 	s.log.Printf("Listening to %s", l.Addr().String())
-	return s.grpcServer.Serve(l)
+	if err := grpcServer.Serve(l); err != nil && err != grpc.ErrServerStopped {
+		return err
+	}
+	return nil
 }

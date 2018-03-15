@@ -48,12 +48,13 @@ func start(client serverpb.ClientClient, ctx context.Context) {
 			reference(cmd, client, ctx)
 		case "help":
 			fmt.Println("\n 🚀  List of options: \n")
-			fmt.Println("	get <file_id>		Fetch a document")
-			fmt.Println("	add <path/to/file>	Add a document to this node")
-			fmt.Println("	peers list		List this node's peers")
-			fmt.Println("	peers add <node_id>	Add a peer to this node")
-			fmt.Println("	reference get		Fetch the document that this reference points to")
-			fmt.Println("	reference add <foo>	Add or update a reference\n")
+			fmt.Println("	get <file_id>				   Fetch a document")
+			fmt.Println("	add <path/to/file>		  	   Add a document to this node")
+			fmt.Println("	peers list				   List this node's peers")
+			fmt.Println("	peers add <node_id>	  		   Add a peer to this node")
+			fmt.Println("	reference get <reference_id>		   Fetch what that this reference points to")
+			fmt.Println("	reference add <record> <path/to/priv_key>  Add or update a reference")
+			fmt.Println("	quit					   Exit the program\n")
 		case "quit":
 			fmt.Println("Exiting program... Goodbye. 🌙")
 			os.Exit(1)
@@ -107,9 +108,21 @@ func peers(cmd []string, client serverpb.ClientClient, ctx context.Context) {
 	if len(cmd) < 2 {
 		fmt.Println("Incorrect number of arguments.")
 	} else if cmd[1] == "list" {
-		// TODO: List peers
+		args := &serverpb.GetPeersRequest{}
+		resp, err := client.GetPeers(ctx, args)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp.GetPeers())
+		}
 	} else if cmd[1] == "add" && len(cmd) == 3 {
-		// TODO: Add peer
+		args := &serverpb.AddPeerRequest{}
+		resp, err := client.AddPeer(ctx, args)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp)
+		}
 	} else if cmd[1] == "add" && len(cmd) != 3 {
 		fmt.Println("Please specify a peer ID.")
 	} else {
@@ -118,15 +131,30 @@ func peers(cmd []string, client serverpb.ClientClient, ctx context.Context) {
 }
 
 func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) {
-	if len(cmd) < 2 {
+	if len(cmd) < 3 {
 		fmt.Println("Incorrect number of arguments.")
-	} else if cmd[1] == "get" {
-		// TODO: Fetch reference
-	} else if cmd[1] == "add" && len(cmd) == 3 {
-		// TODO: Add reference
-	} else if cmd[1] == "add" && len(cmd) != 3 {
-		// TODO: WTF is a reference
-		fmt.Println("Please specify a reference.")
+	} else if cmd[1] == "get" && len(cmd) != 3 {
+		fmt.Println("Please specify a reference ID.")
+	} else if cmd[1] == "get" && len(cmd) == 3 {
+		args := &serverpb.GetReferenceRequest{
+			ReferenceID: cmd[2],
+		}
+		resp, err := client.GetReference(ctx, args)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp)
+		}
+	} else if cmd[1] == "add" && len(cmd) == 4 {
+		args := &serverpb.AddReferenceRequest{}
+		resp, err := client.AddReference(ctx, args)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp)
+		}
+	} else if cmd[1] == "add" && len(cmd) != 4 {
+		fmt.Println("Please specify a record and private key.")
 	} else {
 		fmt.Println("Invalid command.")
 	}
