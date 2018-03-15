@@ -30,29 +30,7 @@ func NewTestCluster(t *testing.T, n int, opts ...func(*serverpb.NodeConfig)) *cl
 		t: t,
 	}
 	for i := 0; i < n; i++ {
-		dir, err := ioutil.TempDir("", "ipfs-cluster-test")
-		if err != nil {
-			t.Fatalf("%+v", err)
-		}
-		config := serverpb.NodeConfig{
-			Path:     dir,
-			MaxPeers: 10,
-		}
-		for _, f := range opts {
-			f(&config)
-		}
-		s, err := server.New(config)
-		if err != nil {
-			t.Fatalf("%+v", err)
-		}
-		c.Nodes = append(c.Nodes, s)
-		c.Dirs = append(c.Dirs, dir)
-
-		go func() {
-			if err := s.Listen(":0"); err != nil {
-				t.Errorf("%+v", err)
-			}
-		}()
+		c.AddNode(opts...)
 	}
 
 	var meta serverpb.NodeMeta
@@ -85,6 +63,34 @@ func NewTestCluster(t *testing.T, n int, opts ...func(*serverpb.NodeConfig)) *cl
 	}
 
 	return &c
+}
+
+func (c *cluster) AddNode(opts ...func(*serverpb.NodeConfig)) *server.Server {
+	dir, err := ioutil.TempDir("", "ipfs-cluster-test")
+	if err != nil {
+		c.t.Fatalf("%+v", err)
+	}
+	config := serverpb.NodeConfig{
+		Path:     dir,
+		MaxPeers: 10,
+	}
+	for _, f := range opts {
+		f(&config)
+	}
+	s, err := server.New(config)
+	if err != nil {
+		c.t.Fatalf("%+v", err)
+	}
+	c.Nodes = append(c.Nodes, s)
+	c.Dirs = append(c.Dirs, dir)
+
+	go func() {
+		if err := s.Listen(":0"); err != nil {
+			c.t.Errorf("%+v", err)
+		}
+	}()
+
+	return s
 }
 
 func (c *cluster) Close() {

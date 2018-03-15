@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"log"
 	"net"
@@ -197,4 +199,29 @@ func (s *Server) AddNodes(connected []*serverpb.NodeMeta, known []*serverpb.Node
 		}
 	}
 	return nil
+}
+
+// BootstrapAddNode adds a node by using an address to do an insecure connection
+// to a node, fetch node metadata and then reconnect via an encrypted
+// connection.
+func (s *Server) BootstrapAddNode(addr string) error {
+	creds := credentials.NewTLS(&tls.Config{
+		Rand:               rand.Reader,
+		InsecureSkipVerify: true,
+	})
+
+	ctx := context.TODO()
+	ctxDial, _ := context.WithTimeout(ctx, dialTimeout)
+	conn, err := grpc.DialContext(ctxDial, addr, grpc.WithTransportCredentials(creds), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client := serverpb.NewNodeClient(conn)
+	meta, err := client.Meta(ctx, nil)
+	if err != nil {
+		return err
+	}
+	return s.AddNode(*meta)
 }
