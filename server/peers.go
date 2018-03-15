@@ -2,14 +2,14 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"log"
 	"net"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
 	"time"
 
-	"github.com/dgraph-io/badger"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -53,34 +53,7 @@ func (s *Server) Hello(ctx context.Context, req *serverpb.HelloRequest) (*server
 	return &resp, nil
 }
 
-// addNodeMeta adds a node meta object to the server and returns whether or not
-// that node has been seen before.
-func (s *Server) addNodeMeta(meta serverpb.NodeMeta) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	old, ok := s.mu.peerMeta[meta.Id]
-	if !ok || old.Updated < meta.Updated {
-		s.mu.peerMeta[meta.Id] = meta
-	}
-	return !ok
-}
-
-func (s *Server) persistNodeMeta(meta serverpb.NodeMeta) error {
-	body, err := meta.Marshal()
-	if err != nil {
-		return err
-	}
-	key := fmt.Sprintf("/NodeMeta/%s", meta.Id)
-	if err := s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), body)
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *Server) connectNode(ctx context.Context, meta serverpb.NodeMeta) (*grpc.ClientConn, error) {
-
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(meta.Cert))
 	if !ok {
@@ -226,4 +199,29 @@ func (s *Server) AddNodes(connected []*serverpb.NodeMeta, known []*serverpb.Node
 		}
 	}
 	return nil
+}
+
+// BootstrapAddNode adds a node by using an address to do an insecure connection
+// to a node, fetch node metadata and then reconnect via an encrypted
+// connection.
+func (s *Server) BootstrapAddNode(addr string) error {
+	creds := credentials.NewTLS(&tls.Config{
+		Rand:               rand.Reader,
+		InsecureSkipVerify: true,
+	})
+
+	ctx := context.TODO()
+	ctxDial, _ := context.WithTimeout(ctx, dialTimeout)
+	conn, err := grpc.DialContext(ctxDial, addr, grpc.WithTransportCredentials(creds), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client := serverpb.NewNodeClient(conn)
+	meta, err := client.Meta(ctx, nil)
+	if err != nil {
+		return err
+	}
+	return s.AddNode(*meta)
 }

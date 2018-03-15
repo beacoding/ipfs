@@ -5,9 +5,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -280,4 +283,13 @@ func Sign(operation []byte, privKey ecdsa.PrivateKey) (signedR, signedS *big.Int
 	signedR = r
 	signedS = s
 	return
+}
+
+// Compute the Hash of any string
+func Hash(a interface{}) (string, error) {
+	h := sha1.New()
+	if err := json.NewEncoder(h).Encode(a); err != nil {
+		return "", nil
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

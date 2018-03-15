@@ -76,6 +76,10 @@ func (s *Server) GetPeers(ctx context.Context, in *serverpb.GetPeersRequest) (*s
 }
 
 func (s *Server) AddPeer(ctx context.Context, in *serverpb.AddPeerRequest) (*serverpb.AddPeerResponse, error) {
+	err := s.BootstrapAddNode(in.GetAddr())
+	if err != nil {
+		return nil, err
+	}
 	resp := &serverpb.AddPeerResponse{}
 	return resp, nil
 }
@@ -95,6 +99,17 @@ func (s *Server) GetReference(ctx context.Context, in *serverpb.GetReferenceRequ
 }
 
 func (s *Server) AddReference(ctx context.Context, in *serverpb.AddReferenceRequest) (*serverpb.AddReferenceResponse, error) {
-	resp := &serverpb.AddReferenceResponse{}
+	// Add this reference locally
+	s.mu.Lock()
+	defer s.mu.Lock()
+	referenceId, err := Hash(in.GetReference().PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.references[referenceId] = *in.GetReference()
+	// TODO: Diseminate this reference to the rest of the network
+	resp := &serverpb.AddReferenceResponse{
+		ReferenceId: referenceId,
+	}
 	return resp, nil
 }

@@ -28,9 +28,12 @@ message HelloResponse {
 message HeartBeatRequest {}
 message HeartBeatResponse {}
 
+message MetaRequest {}
+
 service Node {
   rpc Hello(HelloRequest) returns (HelloResponse) {}
   rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
+  rpc Meta(MetaRequest) returns (NodeMeta) {}
 }
 
 message File {
@@ -85,7 +88,9 @@ message AddReferenceRequest {
   Reference reference = 1;
 }
 
-message AddReferenceResponse {}
+message AddReferenceResponse {
+  string reference_id = 1;
+}
 
 service Client {
   rpc Get(GetRequest) returns (GetResponse) {}
@@ -94,7 +99,7 @@ service Client {
   rpc AddPeer(AddPeerRequest) returns (AddPeerResponse) {}
   rpc GetReference(GetReferenceRequest) returns (GetReferenceResponse) {}
   rpc AddReference(AddReferenceRequest) returns (AddReferenceResponse) {}
-}  
+}
   // ipfs get <hash>
   // ipfs add <file>
   // ipfs peers

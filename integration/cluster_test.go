@@ -48,3 +48,28 @@ func TestClusterMaxPeers(t *testing.T) {
 		})
 	}
 }
+
+func TestBootstrapAddNode(t *testing.T) {
+	ts := NewTestCluster(t, 1)
+	defer ts.Close()
+
+	s := ts.AddNode()
+	meta, err := ts.Nodes[0].NodeMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.BootstrapAddNode(meta.Addrs[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, node := range ts.Nodes {
+		util.SucceedsSoon(t, func() error {
+			got := node.NumConnections()
+			want := 1
+			if got != want {
+				return errors.Errorf("%d. expected %d connections; got %d", i, want, got)
+			}
+			return nil
+		})
+	}
+}
