@@ -1,18 +1,21 @@
 package server
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
+	"fmt"
 	"math/big"
 	"net"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
 	"strconv"
 	"time"
 
+	"github.com/dgraph-io/badger"
 	"github.com/pkg/errors"
 )
 
@@ -170,4 +173,38 @@ func (s *Server) NodeMeta() (serverpb.NodeMeta, error) {
 	meta.Signature = sig
 
 	return meta, nil
+}
+
+// addNodeMeta adds a node meta object to the server and returns whether or not
+// that node has been seen before.
+func (s *Server) addNodeMeta(meta serverpb.NodeMeta) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.mu.peerMeta[meta.Id]
+	if !ok || old.Updated < meta.Updated {
+		s.mu.peerMeta[meta.Id] = meta
+	}
+	return !ok
+}
+
+func (s *Server) persistNodeMeta(meta serverpb.NodeMeta) error {
+	body, err := meta.Marshal()
+	if err != nil {
+		return err
+	}
+	key := fmt.Sprintf("/NodeMeta/%s", meta.Id)
+	if err := s.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(key), body)
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) Meta(ctx context.Context, req *serverpb.MetaRequest) (*serverpb.NodeMeta, error) {
+	meta, err := s.NodeMeta()
+	if err != nil {
+		return nil, err
+	}
+	return &meta, nil
 }
