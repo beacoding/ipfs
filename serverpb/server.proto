@@ -85,7 +85,8 @@ message GetReferenceResponse {
 }
 
 message AddReferenceRequest {
-  Reference reference = 1;
+  bytes priv_key = 1;
+  string record = 2;
 }
 
 message AddReferenceResponse {

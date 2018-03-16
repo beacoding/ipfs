@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"crypto/sha1"
+	"encoding/asn1"
 	"encoding/base64"
 	"fmt"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
+	"time"
 
 	"github.com/dgraph-io/badger"
 )
@@ -99,14 +101,48 @@ func (s *Server) GetReference(ctx context.Context, in *serverpb.GetReferenceRequ
 }
 
 func (s *Server) AddReference(ctx context.Context, in *serverpb.AddReferenceRequest) (*serverpb.AddReferenceResponse, error) {
+	privKey, err := LoadPrivate(in.GetPrivKey())
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	pubKey, err := MarshalPublic(&privKey.PublicKey)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	// Create reference
+	reference := &serverpb.Reference{
+		Value:     in.GetRecord(),
+		PublicKey: pubKey,
+		Timestamp: time.Now().Unix(),
+	}
+	bytes, err := reference.Marshal()
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	r, s1, err := Sign(bytes, *privKey)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	sig, err := asn1.Marshal(EcdsaSignature{R: r, S: s1})
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	reference.Signature = base64.StdEncoding.EncodeToString(sig)
+
 	// Add this reference locally
 	s.mu.Lock()
 	defer s.mu.Lock()
-	referenceId, err := Hash(in.GetReference().PublicKey)
+
+	referenceId, err := Hash(reference.PublicKey)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.references[referenceId] = *in.GetReference()
+	s.mu.references[referenceId] = *reference
 	// TODO: Diseminate this reference to the rest of the network
 	resp := &serverpb.AddReferenceResponse{
 		ReferenceId: referenceId,

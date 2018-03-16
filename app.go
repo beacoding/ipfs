@@ -3,13 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/asn1"
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/server"
 	"proj2_f5w9a_h6v9a_q7w9a_r8u8_w1c0b/serverpb"
 	"strings"
 	"time"
@@ -155,48 +152,32 @@ func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) 
 			fmt.Println("Record should be in the format of 'document:document_id' or 'reference:reference_id'.")
 			return
 		}
-		// Load private key and create public key
-		privKey, err := server.LoadPrivate(cmd[3])
-		if err != nil {
-			fmt.Println(err)
-			return
+		// Load private key into bytes
+		var privateBody []byte
+		privatePath := cmd[3]
+
+		if _, err := os.Stat(privatePath); err != nil {
+			privateBody = []byte(privatePath)
+		} else {
+			privateBody, err = ioutil.ReadFile(privatePath)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 		}
-		pubKey, err := server.MarshalPublic(&privKey.PublicKey)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		// Create reference
-		reference := &serverpb.Reference{
-			Value:     cmd[2],
-			PublicKey: pubKey,
-			Timestamp: time.Now().Unix(),
-		}
-		bytes, err := reference.Marshal()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		r, s, err := server.Sign(bytes, *privKey)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		sig, err := asn1.Marshal(server.EcdsaSignature{R: r, S: s})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		reference.Signature = base64.StdEncoding.EncodeToString(sig)
+
 		args := &serverpb.AddReferenceRequest{
-			Reference: reference,
+			PrivKey: privateBody,
+			Record:  cmd[2],
 		}
+
 		resp, err := client.AddReference(ctx, args)
 		if err != nil {
 			fmt.Println(err)
 		} else {
 			fmt.Println(resp)
 		}
+
 	} else if cmd[1] == "add" && len(cmd) != 4 {
 		fmt.Println("Please specify a record and private key.")
 	} else {

@@ -14,7 +14,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
@@ -187,18 +186,7 @@ func (s *Server) loadOrGenerateCert() error {
 	return nil
 }
 
-func LoadPrivate(privatePath string) (*ecdsa.PrivateKey, error) {
-	var privateBody []byte
-
-	if _, err := os.Stat(privatePath); err != nil {
-		privateBody = []byte(privatePath)
-	} else {
-		privateBody, err = ioutil.ReadFile(privatePath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func LoadPrivate(privateBody []byte) (*ecdsa.PrivateKey, error) {
 	privateKey, err := UnmarshalPrivate(string(privateBody))
 	if err != nil {
 		return nil, err
