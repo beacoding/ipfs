@@ -156,14 +156,10 @@ func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) 
 		var privateBody []byte
 		privatePath := cmd[3]
 
-		if _, err := os.Stat(privatePath); err != nil {
-			privateBody = []byte(privatePath)
-		} else {
-			privateBody, err = ioutil.ReadFile(privatePath)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+		privateBody, err := ioutil.ReadFile(privatePath)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
 
 		args := &serverpb.AddReferenceRequest{
