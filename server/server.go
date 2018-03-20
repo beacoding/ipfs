@@ -50,6 +50,7 @@ func New(c serverpb.NodeConfig) (*Server, error) {
 	s.mu.peerMeta = map[string]serverpb.NodeMeta{}
 	s.mu.peers = map[string]serverpb.NodeClient{}
 	s.mu.peerConns = map[string]*grpc.ClientConn{}
+	s.mu.references = map[string]serverpb.Reference{}
 
 	if len(c.Path) == 0 {
 		return nil, errors.Errorf("config: path must not be empty")

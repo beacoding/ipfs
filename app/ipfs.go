@@ -173,14 +173,14 @@ func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) 
 
 		args := &serverpb.AddReferenceRequest{
 			PrivKey: privateBody,
-			Record:  cmd[2][strings.Index(cmd[2], ":")+1:],
+			Record:  cmd[2],
 		}
 
 		resp, err := client.AddReference(ctx, args)
 		if err != nil {
 			fmt.Println(err)
 		} else {
-			fmt.Println(resp)
+			fmt.Println(resp.GetReferenceId())
 		}
 
 	} else if cmd[1] == "add" && len(cmd) != 4 {
