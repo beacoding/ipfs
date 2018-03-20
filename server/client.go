@@ -13,9 +13,9 @@ import (
 )
 
 func (s *Server) Get(ctx context.Context, in *serverpb.GetRequest) (*serverpb.GetResponse, error) {
-	var f serverpb.File
+	var f serverpb.Document
 	if err := s.db.View(func(txn *badger.Txn) error {
-		key := fmt.Sprintf("/document/%s", in.FileId)
+		key := fmt.Sprintf("/document/%s", in.DocumentId)
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
@@ -33,14 +33,14 @@ func (s *Server) Get(ctx context.Context, in *serverpb.GetRequest) (*serverpb.Ge
 	}
 
 	resp := &serverpb.GetResponse{
-		File: &f,
+		Document: &f,
 	}
 
 	return resp, nil
 }
 
 func (s *Server) Add(ctx context.Context, in *serverpb.AddRequest) (*serverpb.AddResponse, error) {
-	b, err := in.File.Marshal()
+	b, err := in.Document.Marshal()
 	if err != nil {
 		return nil, err
 	}
@@ -55,9 +55,14 @@ func (s *Server) Add(ctx context.Context, in *serverpb.AddRequest) (*serverpb.Ad
 	}
 
 	resp := &serverpb.AddResponse{
-		FileId: hash,
+		DocumentId: hash,
 	}
 
+	return resp, nil
+}
+
+func (s *Server) AddDirectory(ctx context.Context, in *serverpb.AddDirectoryRequest) (*serverpb.AddDirectoryResponse, error) {
+	resp := &serverpb.AddDirectoryResponse{}
 	return resp, nil
 }
 
