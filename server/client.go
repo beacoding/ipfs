@@ -88,7 +88,7 @@ func (s *Server) AddPeer(ctx context.Context, in *serverpb.AddPeerRequest) (*ser
 
 func (s *Server) GetReference(ctx context.Context, in *serverpb.GetReferenceRequest) (*serverpb.GetReferenceResponse, error) {
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 	if reference, ok := s.mu.references[in.GetReferenceId()]; ok {
 		resp := &serverpb.GetReferenceResponse{
 			Reference: &reference,
@@ -136,7 +136,7 @@ func (s *Server) AddReference(ctx context.Context, in *serverpb.AddReferenceRequ
 
 	// Add this reference locally
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 
 	referenceId, err := Hash(reference.PublicKey)
 	if err != nil {

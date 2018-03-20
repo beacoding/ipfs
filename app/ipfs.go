@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -20,8 +23,15 @@ func main() {
 		return
 	}
 	// Set up RPC connection to client
-	ctx, _ := context.WithTimeout(context.TODO(), 2*time.Second)
-	conn, err := grpc.DialContext(ctx, os.Args[1], grpc.WithInsecure())
+	creds := credentials.NewTLS(&tls.Config{
+		Rand:               rand.Reader,
+		InsecureSkipVerify: true,
+	})
+
+	ctx := context.TODO()
+	ctxDial, _ := context.WithTimeout(ctx, 2*time.Second)
+	conn, err := grpc.DialContext(ctxDial, os.Args[1], grpc.WithTransportCredentials(creds), grpc.WithBlock())
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,8 +85,7 @@ func get(cmd []string, client serverpb.ClientClient, ctx context.Context) {
 		if err != nil {
 			fmt.Println(err)
 		} else {
-			fmt.Println("File name: " + resp.File.GetName())
-			fmt.Println(resp.File.GetData())
+			fmt.Printf("%s\n", resp.File.GetData())
 		}
 	}
 }
@@ -164,7 +173,7 @@ func reference(cmd []string, client serverpb.ClientClient, ctx context.Context) 
 
 		args := &serverpb.AddReferenceRequest{
 			PrivKey: privateBody,
-			Record:  cmd[2],
+			Record:  cmd[2][strings.Index(cmd[2], ":")+1:],
 		}
 
 		resp, err := client.AddReference(ctx, args)
